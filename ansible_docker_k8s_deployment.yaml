@@ -1,0 +1,78 @@
+- hosts: localhost
+  gather_facts: no
+  become: yes
+  connection: local
+  collections:
+    - community.docker
+    - kubernetes.core
+  vars:
+    customnamespace: default
+  tasks:
+    - name: start a container
+      community.docker.docker_container:
+        name: abc-application
+        image: abdulpurduedevops/abctechnologies
+        state: started
+        ports:
+          - 2255:8080
+      register: container_out
+
+    - name: Create a Deployment
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: ABC-deployment
+            namespace: "{{ customnamespace }}"
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: ABC-webapp
+            template:
+              metadata:
+                labels:
+                  app: ABC-webapp
+              spec:
+                containers:
+                - name: my-container
+                  image: abdulpurduedevops/abctechnologies:latest
+                  ports:
+                  - containerPort: 80
+        namespace: "{{ customnamespace }}"
+      register: deployment_out
+
+    - name: Create a Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: my-service
+            namespace: "{{ customnamespace }}"
+          spec:
+            type: NodePort
+            selector:
+              app: ABC-webapp
+            ports:
+            - name: http
+              port: 80
+              targetPort: 8080
+        namespace: "{{ customnamespace }}"
+      register: service_out
+
+    - name: Debug Container Output
+      debug:
+        var: container_out
+
+    - name: Debug Deployment Output
+      debug:
+        var: deployment_out
+
+    - name: Debug Service Output
+      debug:
+        var: service_out
+
